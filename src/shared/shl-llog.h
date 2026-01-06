@@ -1,55 +1,12 @@
 /*
- * SHL - Library Log/Debug Interface
+ * SHL - Library Log/Debug Interface (IRIX-compatible version)
  *
  * Copyright (c) 2010-2013 David Herrmann <dh.herrmann@gmail.com>
  * Dedicated to the Public Domain
- */
-
-/*
- * Library Log/Debug Interface
- * Libraries should always avoid producing side-effects. This includes writing
- * log-messages of any kind. However, you often don't want to disable debugging
- * entirely, therefore, the core objects often contain a pointer to a function
- * which performs logging. If that pointer is NULL (default), logging is
- * disabled.
  *
- * This header should never be installed into the system! This is _no_ public
- * header. Instead, copy it into your application if you want and use it there.
- * Your public library API should include something like this:
- *
- *   typedef void (*MYPREFIX_log_t) (void *data,
- *                                   const char *file,
- *                                   int line,
- *                                   const char *func,
- *                                   const char *subs,
- *                                   unsigned int sev,
- *                                   const char *format,
- *                                   va_list args);
- *
- * And then the user can supply such a function when creating a new context
- * object of your library or simply supply NULL. Internally, you have a field of
- * type "MYPREFIX_log_t llog" in your main structure. If you pass this to the
- * convenience helpers like llog_dbg(), llog_warn() etc. it will automatically
- * use the "llog" field to print the message. If it is NULL, nothing is done.
- *
- * The arguments of the log-function are defined as:
- *   data: User-supplied data field that is passed straight through.
- *   file: Zero terminated string of the file-name where the log-message
- *         occurred. Can be NULL.
- *   line: Line number of @file where the message occurred. Set to 0 or smaller
- *         if not available.
- *   func: Function name where the log-message occurred. Can be NULL.
- *   subs: Subsystem where the message occurred (zero terminated). Can be NULL.
- *   sev: Severity of log-message. An integer between 0 and 7 as defined below.
- *        These are identical to the linux-kernel severities so there is no need
- *        to include these in your public API. Every app can define them
- *        themselves, if they need it.
- *   format: Format string. Must not be NULL.
- *   args: Argument array
- *
- * The user should also be able to optionally provide a data field which is
- * always passed unmodified as first parameter to the log-function. This allows
- * to add context to the logger.
+ * IRIX Compatibility Note:
+ * This version removes ##__VA_ARGS__ which MIPSpro doesn't support.
+ * Since all macros have a format parameter, the comma is always needed.
  */
 
 #ifndef SHL_LLOG_H
@@ -81,8 +38,8 @@ typedef void (*llog_submit_t) (void *data,
 			       const char *format,
 			       va_list args);
 
-static inline __attribute__((format(printf, 8, 9)))
-void llog_format(llog_submit_t llog,
+/* Note: __attribute__ is defined as empty in config.h for IRIX */
+static inline void llog_format(llog_submit_t llog,
 		 void *data,
 		 const char *file,
 		 int line,
@@ -104,28 +61,27 @@ void llog_format(llog_submit_t llog,
 }
 
 #ifndef LLOG_SUBSYSTEM
-static const char *LLOG_SUBSYSTEM __attribute__((__unused__));
+static const char *LLOG_SUBSYSTEM;
 #endif
 
 #define LLOG_DEFAULT __FILE__, __LINE__, __func__, LLOG_SUBSYSTEM
 
-#define llog_printf(obj, sev, format, ...) \
+/* IRIX version: MIPSpro doesn't support ##__VA_ARGS__ */
+/* Solution: Move format into __VA_ARGS__ so it's never empty */
+#define llog_printf(obj, sev, ...) \
 	llog_format((obj)->llog, \
 		    (obj)->llog_data, \
 		    LLOG_DEFAULT, \
 		    (sev), \
-		    (format), \
-		    ##__VA_ARGS__)
-#define llog_dprintf(obj, data, sev, format, ...) \
+		    __VA_ARGS__)
+#define llog_dprintf(obj, data, sev, ...) \
 	llog_format((obj), \
 		    (data), \
 		    LLOG_DEFAULT, \
 		    (sev), \
-		    (format), \
-		    ##__VA_ARGS__)
+		    __VA_ARGS__)
 
-static inline __attribute__((format(printf, 4, 5)))
-void llog_dummyf(llog_submit_t llog, void *data, unsigned int sev,
+static inline void llog_dummyf(llog_submit_t llog, void *data, unsigned int sev,
 		 const char *format, ...)
 {
 }
@@ -138,45 +94,45 @@ void llog_dummyf(llog_submit_t llog, void *data, unsigned int sev,
  */
 
 #ifdef BUILD_ENABLE_DEBUG
-	#define llog_ddebug(obj, data, format, ...) \
-		llog_dprintf((obj), (data), LLOG_DEBUG, (format), ##__VA_ARGS__)
-	#define llog_debug(obj, format, ...) \
-		llog_ddebug((obj)->llog, (obj)->llog_data, (format), ##__VA_ARGS__)
+	#define llog_ddebug(obj, data, ...) \
+		llog_dprintf((obj), (data), LLOG_DEBUG, __VA_ARGS__)
+	#define llog_debug(obj, ...) \
+		llog_ddebug((obj)->llog, (obj)->llog_data, __VA_ARGS__)
 #else
-	#define llog_ddebug(obj, data, format, ...) \
-		llog_dummyf((obj), (data), LLOG_DEBUG, (format), ##__VA_ARGS__)
-	#define llog_debug(obj, format, ...) \
-		llog_ddebug((obj)->llog, (obj)->llog_data, (format), ##__VA_ARGS__)
+	#define llog_ddebug(obj, data, ...) \
+		llog_dummyf((obj), (data), LLOG_DEBUG, __VA_ARGS__)
+	#define llog_debug(obj, ...) \
+		llog_ddebug((obj)->llog, (obj)->llog_data, __VA_ARGS__)
 #endif
 
-#define llog_info(obj, format, ...) \
-	llog_printf((obj), LLOG_INFO, (format), ##__VA_ARGS__)
-#define llog_dinfo(obj, data, format, ...) \
-	llog_dprintf((obj), (data), LLOG_INFO, (format), ##__VA_ARGS__)
-#define llog_notice(obj, format, ...) \
-	llog_printf((obj), LLOG_NOTICE, (format), ##__VA_ARGS__)
-#define llog_dnotice(obj, data, format, ...) \
-	llog_dprintf((obj), (data), LLOG_NOTICE, (format), ##__VA_ARGS__)
-#define llog_warning(obj, format, ...) \
-	llog_printf((obj), LLOG_WARNING, (format), ##__VA_ARGS__)
-#define llog_dwarning(obj, data, format, ...) \
-	llog_dprintf((obj), (data), LLOG_WARNING, (format), ##__VA_ARGS__)
-#define llog_error(obj, format, ...) \
-	llog_printf((obj), LLOG_ERROR, (format), ##__VA_ARGS__)
-#define llog_derror(obj, data, format, ...) \
-	llog_dprintf((obj), (data), LLOG_ERROR, (format), ##__VA_ARGS__)
-#define llog_critical(obj, format, ...) \
-	llog_printf((obj), LLOG_CRITICAL, (format), ##__VA_ARGS__)
-#define llog_dcritical(obj, data, format, ...) \
-	llog_dprintf((obj), (data), LLOG_CRITICAL, (format), ##__VA_ARGS__)
-#define llog_alert(obj, format, ...) \
-	llog_printf((obj), LLOG_ALERT, (format), ##__VA_ARGS__)
-#define llog_dalert(obj, data, format, ...) \
-	llog_dprintf((obj), (data), LLOG_ALERT, (format), ##__VA_ARGS__)
-#define llog_fatal(obj, format, ...) \
-	llog_printf((obj), LLOG_FATAL, (format), ##__VA_ARGS__)
-#define llog_dfatal(obj, data, format, ...) \
-	llog_dprintf((obj), (data), LLOG_FATAL, (format), ##__VA_ARGS__)
+#define llog_info(obj, ...) \
+	llog_printf((obj), LLOG_INFO, __VA_ARGS__)
+#define llog_dinfo(obj, data, ...) \
+	llog_dprintf((obj), (data), LLOG_INFO, __VA_ARGS__)
+#define llog_notice(obj, ...) \
+	llog_printf((obj), LLOG_NOTICE, __VA_ARGS__)
+#define llog_dnotice(obj, data, ...) \
+	llog_dprintf((obj), (data), LLOG_NOTICE, __VA_ARGS__)
+#define llog_warning(obj, ...) \
+	llog_printf((obj), LLOG_WARNING, __VA_ARGS__)
+#define llog_dwarning(obj, data, ...) \
+	llog_dprintf((obj), (data), LLOG_WARNING, __VA_ARGS__)
+#define llog_error(obj, ...) \
+	llog_printf((obj), LLOG_ERROR, __VA_ARGS__)
+#define llog_derror(obj, data, ...) \
+	llog_dprintf((obj), (data), LLOG_ERROR, __VA_ARGS__)
+#define llog_critical(obj, ...) \
+	llog_printf((obj), LLOG_CRITICAL, __VA_ARGS__)
+#define llog_dcritical(obj, data, ...) \
+	llog_dprintf((obj), (data), LLOG_CRITICAL, __VA_ARGS__)
+#define llog_alert(obj, ...) \
+	llog_printf((obj), LLOG_ALERT, __VA_ARGS__)
+#define llog_dalert(obj, data, ...) \
+	llog_dprintf((obj), (data), LLOG_ALERT, __VA_ARGS__)
+#define llog_fatal(obj, ...) \
+	llog_printf((obj), LLOG_FATAL, __VA_ARGS__)
+#define llog_dfatal(obj, data, ...) \
+	llog_dprintf((obj), (data), LLOG_FATAL, __VA_ARGS__)
 
 /*
  * Default log messages

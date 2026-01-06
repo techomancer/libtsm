@@ -26,12 +26,15 @@
 #include <stdlib.h>
 
 /* miscellaneous */
-
+#ifdef __sgi
+#define shl_htable_offsetof(pointer, type, member) \
+	((type*)(((char*)(pointer)) - offsetof(type, member)))
+#else
 #define shl_htable_offsetof(pointer, type, member) ({ \
 		const typeof(((type*)0)->member) *__ptr = (pointer); \
 		(type*)(((char*)__ptr) - offsetof(type, member)); \
 	})
-
+#endif
 /* htable */
 
 struct shl_htable_int {

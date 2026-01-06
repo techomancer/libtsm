@@ -12,18 +12,29 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
-#include <pty.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/epoll.h>
 #include <sys/ioctl.h>
 #include <sys/uio.h>
 #include <termios.h>
 #include <unistd.h>
+
+#ifdef __sgi
+/* IRIX PTY support */
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/poll.h>
+#include <sys/wait.h>
+#else
+/* Linux PTY support */
+#include <pty.h>
+#include <sys/epoll.h>
+#endif
+
 #include "shl-macro.h"
 #include "shl-pty.h"
 #include "shl-ring.h"
@@ -110,8 +121,10 @@ static int pty_setup_child(int slave,
 
 	/* erase character should be normal backspace, PLEASEEE! */
 	attr.c_cc[VERASE] = 010;
-	/* always set UTF8 flag */
+#ifndef __sgi
+	/* always set UTF8 flag (not available on IRIX) */
 	attr.c_iflag |= IUTF8;
+#endif
 
 	/* set changed terminal attributes */
 	if (tcsetattr(slave, TCSANOW, &attr) < 0)
@@ -132,6 +145,53 @@ static int pty_setup_child(int slave,
 	return 0;
 }
 
+#ifdef __sgi
+/* IRIX version: open slave PTY using provided slave_name */
+static int pty_init_child_irix(const char *slave_name)
+{
+	int r, i, slave;
+	sigset_t sigset;
+	pid_t pid;
+
+	/* Reset signal handlers */
+	sigemptyset(&sigset);
+	r = sigprocmask(SIG_SETMASK, &sigset, NULL);
+	if (r < 0)
+		return -errno;
+
+	for (i = 1; i < SIGSYS; ++i)
+		signal(i, SIG_DFL);
+
+	/* Open slave TTY */
+	slave = open(slave_name, O_RDWR | O_NOCTTY);
+	if (slave < 0)
+		return -errno;
+
+	/* Set close-on-exec manually (IRIX doesn't have O_CLOEXEC) */
+	fcntl(slave, F_SETFD, FD_CLOEXEC);
+
+	/* Open session so we lose our controlling TTY */
+	pid = setsid();
+	if (pid < 0) {
+		close(slave);
+		return -errno;
+	}
+
+#ifndef __sgi
+	/* Set controlling TTY (on IRIX, opening terminal after setsid does this) */
+	r = ioctl(slave, TIOCSCTTY, 0);
+	if (r < 0) {
+		close(slave);
+		return -errno;
+	}
+#endif
+
+	return slave;
+}
+#endif
+
+#ifndef __sgi
+/* Linux version: initialize PTY from master fd */
 static int pty_init_child(int fd)
 {
 	int r;
@@ -182,6 +242,7 @@ static int pty_init_child(int fd)
 
 	return slave;
 }
+#endif
 
 pid_t shl_pty_open(struct shl_pty **out,
 		   shl_pty_input_fn fn_input,
@@ -189,11 +250,15 @@ pid_t shl_pty_open(struct shl_pty **out,
 		   unsigned short term_width,
 		   unsigned short term_height)
 {
-	_shl_pty_unref_ struct shl_pty *pty = NULL;
-	_shl_close_ int fd = -1;
+	struct shl_pty *pty = NULL;
+	int fd = -1;
 	int slave, r, comm[2];
 	pid_t pid;
 	char d;
+	int ret;
+#ifdef __sgi
+	char *slave_name;
+#endif
 
 	if (!out)
 		return -EINVAL;
@@ -207,24 +272,58 @@ pid_t shl_pty_open(struct shl_pty **out,
 	pty->fn_input = fn_input;
 	pty->fn_input_data = fn_input_data;
 
+#ifdef __sgi
+	/* IRIX: Use _getpty() to allocate PTY */
+	slave_name = _getpty(&fd, O_RDWR | O_NOCTTY, 0600, 0);
+	if (!slave_name || fd < 0) {
+		ret = -errno;
+		goto err_pty;
+	}
+
+	/* Set non-blocking mode */
+	fcntl(fd, F_SETFL, O_NONBLOCK);
+	/* Set close-on-exec */
+	fcntl(fd, F_SETFD, FD_CLOEXEC);
+
+	/* Create communication pipe */
+	if (pipe(comm) < 0) {
+		ret = -errno;
+		goto err_fd;
+	}
+	/* Set close-on-exec for pipe */
+	fcntl(comm[0], F_SETFD, FD_CLOEXEC);
+	fcntl(comm[1], F_SETFD, FD_CLOEXEC);
+#else
+	/* Linux: Use posix_openpt() */
 	fd = posix_openpt(O_RDWR | O_NOCTTY | O_CLOEXEC | O_NONBLOCK);
-	if (fd < 0)
-		return -errno;
+	if (fd < 0) {
+		ret = -errno;
+		goto err_pty;
+	}
 
 	r = pipe2(comm, O_CLOEXEC);
-	if (r < 0)
-		return -errno;
+	if (r < 0) {
+		ret = -errno;
+		goto err_fd;
+	}
+#endif
 
 	pid = fork();
 	if (pid < 0) {
 		/* error */
-		pid = -errno;
+		ret = -errno;
 		close(comm[0]);
 		close(comm[1]);
-		return pid;
+		goto err_fd;
 	} else if (!pid) {
 		/* child */
+#ifdef __sgi
+		/* IRIX: slave_name is available from parent's _getpty() */
+		slave = pty_init_child_irix(slave_name);
+#else
+		/* Linux: need to call pty_init_child with master fd */
 		slave = pty_init_child(fd);
+#endif
 		if (slave < 0)
 			exit(1);
 
@@ -260,12 +359,26 @@ pid_t shl_pty_open(struct shl_pty **out,
 	/* wait for child setup */
 	d = pty_recv(comm[0]);
 	close(comm[0]);
-	if (d != SHL_PTY_SETUP)
-		return -EINVAL;
+	if (d != SHL_PTY_SETUP) {
+		ret = -EINVAL;
+		goto err_child;
+	}
 
 	*out = pty;
-	pty = NULL;
 	return pid;
+
+err_child:
+	/* Child setup failed, kill it */
+	kill(pid, SIGKILL);
+	waitpid(pid, NULL, 0);
+	/* fall through */
+err_fd:
+	if (fd >= 0)
+		close(fd);
+	/* fall through */
+err_pty:
+	shl_pty_unref(pty);
+	return ret;
 }
 
 void shl_pty_ref(struct shl_pty *pty)
@@ -415,7 +528,12 @@ int shl_pty_signal(struct shl_pty *pty, int sig)
 	if (!shl_pty_is_open(pty))
 		return -ENODEV;
 
+#ifdef __sgi
+	/* IRIX doesn't have TIOCSIG - signals should be sent to child PID directly */
+	return -ENOSYS;
+#else
 	return ioctl(pty->fd, TIOCSIG, sig) < 0 ? -errno : 0;
+#endif
 }
 
 int shl_pty_resize(struct shl_pty *pty,
@@ -446,8 +564,42 @@ int shl_pty_resize(struct shl_pty *pty,
  * This interface is provided to allow integration of PTYs into event-loops
  * that do not support edge-triggered interfaces. There is no other reason
  * to use this bridge.
+ *
+ * IRIX Note: Bridge functions are stubs on IRIX. Use XtAppAddInput or
+ * similar event loop integration directly instead.
  */
 
+#ifdef __sgi
+/* IRIX stubs - bridge not implemented, use native event loop integration */
+int shl_pty_bridge_new(void)
+{
+	return -ENOSYS;
+}
+
+void shl_pty_bridge_free(int bridge)
+{
+}
+
+int shl_pty_bridge_dispatch_pty(int bridge, struct shl_pty *pty)
+{
+	return -ENOSYS;
+}
+
+int shl_pty_bridge_dispatch(int bridge, int timeout)
+{
+	return -ENOSYS;
+}
+
+int shl_pty_bridge_add(int bridge, struct shl_pty *pty)
+{
+	return -ENOSYS;
+}
+
+void shl_pty_bridge_remove(int bridge, struct shl_pty *pty)
+{
+}
+#else
+/* Linux epoll-based bridge implementation */
 int shl_pty_bridge_new(void)
 {
 	int fd;
@@ -550,3 +702,4 @@ void shl_pty_bridge_remove(int bridge, struct shl_pty *pty)
 		  shl_pty_get_fd(pty),
 		  NULL);
 }
+#endif /* !__sgi */

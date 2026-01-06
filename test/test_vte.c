@@ -205,28 +205,28 @@ START_TEST(test_vte_osc_query)
 	ck_assert_int_eq(r, 0);
 
 	// query foreground, end_seq = BEL
-	input = "\e]10;?\x07";
-	strcpy(expected_output, "\e]10;rgb:1010/2222/3434\x07");
+	input = "\033]10;?\x07";
+	strcpy(expected_output, "\033]10;rgb:1010/2222/3434\x07");
 	checked_vte_input(vte, input, strlen(input));
 
 	// query foreground, end_seq = ST
-	input = "\e]10;?\e\\";
-	strcpy(expected_output, "\e]10;rgb:1010/2222/3434\e\\");
+	input = "\033]10;?\033\\";
+	strcpy(expected_output, "\033]10;rgb:1010/2222/3434\033\\");
 	checked_vte_input(vte, input, strlen(input));
 
 	// ignore additional parameters after foreground query
-	input = "\e]10;?;11;?\x07";
-	strcpy(expected_output, "\e]10;rgb:1010/2222/3434\x07");
+	input = "\033]10;?;11;?\x07";
+	strcpy(expected_output, "\033]10;rgb:1010/2222/3434\x07");
 	checked_vte_input(vte, input, strlen(input));
 
 	// query background
-	input = "\e]11;?\x07";
-	strcpy(expected_output, "\e]11;rgb:1111/2323/3535\x07");
+	input = "\033]11;?\x07";
+	strcpy(expected_output, "\033]11;rgb:1111/2323/3535\x07");
 	checked_vte_input(vte, input, strlen(input));
 
 	// ignore additional parameters after background query
-	input = "\e]11;?;12;?\x07";
-	strcpy(expected_output, "\e]11;rgb:1111/2323/3535\x07");
+	input = "\033]11;?;12;?\x07";
+	strcpy(expected_output, "\033]11;rgb:1111/2323/3535\x07");
 	checked_vte_input(vte, input, strlen(input));
 }
 END_TEST
@@ -271,27 +271,27 @@ START_TEST(test_vte_osc4)
 
 	// query palette entries
 	storing_write_cb_reset();
-	input = "\e]4;1;?;13;?;3;?\x07";
+	input = "\033]4;1;?;13;?;3;?\x07";
 	const char *expected =
-		"\e]4;1;rgb:0101/1313/2525\x07"
-		"\e]4;13;rgb:0d0d/1f1f/3131\x07"
-		"\e]4;3;rgb:0303/1515/2727\x07";
+		"\033]4;1;rgb:0101/1313/2525\x07"
+		"\033]4;13;rgb:0d0d/1f1f/3131\x07"
+		"\033]4;3;rgb:0303/1515/2727\x07";
 	tsm_vte_input(vte, input, strlen(input));
 	ck_assert_mem_eq(write_buffer, expected, strlen(expected));
 	ck_assert_int_eq(write_buffer_p - write_buffer, strlen(expected));
 
 	// query cube & grayscale entries
 	storing_write_cb_reset();
-	input = "\e]4;110;?;254;?;\x07";
+	input = "\033]4;110;?;254;?;\x07";
 	expected =
-		"\e]4;110;rgb:8787/afaf/d7d7\x07"
-		"\e]4;254;rgb:e4e4/e4e4/e4e4\x07";
+		"\033]4;110;rgb:8787/afaf/d7d7\x07"
+		"\033]4;254;rgb:e4e4/e4e4/e4e4\x07";
 	tsm_vte_input(vte, input, strlen(input));
 	ck_assert_mem_eq(write_buffer, expected, strlen(expected));
 
 	// ignore color change requests, incomplete messages
 	storing_write_cb_reset();
-	input = "\e]4;1;rgb:1111/2222/3333;2\x07";
+	input = "\033]4;1;rgb:1111/2222/3333;2\x07";
 	tsm_vte_input(vte, input, strlen(input));
 	ck_assert_ptr_eq(write_buffer, write_buffer_p);
 	storing_write_cb_reset();

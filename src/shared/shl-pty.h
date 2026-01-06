@@ -38,12 +38,7 @@ void shl_pty_ref(struct shl_pty *pty);
 void shl_pty_unref(struct shl_pty *pty);
 void shl_pty_close(struct shl_pty *pty);
 
-static inline void shl_pty_unref_p(struct shl_pty **pty)
-{
-	shl_pty_unref(*pty);
-}
-
-#define _shl_pty_unref_ _shl_cleanup_(shl_pty_unref_p)
+/* Note: _shl_pty_unref_ cleanup attribute removed for IRIX compatibility */
 
 bool shl_pty_is_open(struct shl_pty *pty);
 int shl_pty_get_fd(struct shl_pty *pty);

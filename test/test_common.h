@@ -68,16 +68,19 @@
 
 #define TEST_CASE(_name) test_create_case_##_name
 
+/* Typedef for function pointer to work around MIPSpro va_arg limitations */
+typedef TCase *(*test_case_fn_t)(void);
+
 static inline Suite *test_create_suite(const char *name, ...)
 {
 	Suite *s;
 	va_list list;
-	TCase *(*fn)(void);
+	test_case_fn_t fn;
 
 	s = suite_create(name);
 
 	va_start(list, name);
-	while ((fn = va_arg(list, TCase *(*)(void))))
+	while ((fn = va_arg(list, test_case_fn_t)))
 		suite_add_tcase(s, fn());
 	va_end(list);
 
