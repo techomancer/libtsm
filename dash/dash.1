@@ -1,0 +1,135 @@
+.TH DASH 1 "January 2026" "Version 1.0" "User Commands"
+.SH NAME
+dash \- Modern IRIX Terminal Emulator
+.SH SYNOPSIS
+.B dash
+[\-fn \fIfont\fP] [\-size \fIsize\fP] [\-dynbg \fImode\fP] [\-C] [\-brightness \fIval\fP] [\-theme \fIname\fP] [\-fg \fIcolor\fP] [\-bg \fIcolor\fP] [\-burn]
+.SH DESCRIPTION
+.B dash
+is a Motif-based terminal emulator for IRIX, featuring OpenGL acceleration and dynamic backgrounds.
+It is designed to be lightweight and visually appealing, with support for modern terminal features via libtsm.
+.SH OPTIONS
+.TP
+.BI \-fn " font"
+Specify the font family to use (default: courier).
+.TP
+.BI \-size " size"
+Specify the font size in pixels (default: 14).
+.TP
+.BI \-dynbg " mode"
+Set the dynamic background mode. Available modes are:
+.RS
+.IP \fInone\fP
+No dynamic background (default).
+.IP \fInight\fP
+Starry night with shooting stars.
+.IP \fIsunset\fP
+Retro-wave sunset grid.
+.IP \fIocean\fP
+Ocean waves with fish and bubbles.
+.IP \fIaurora\fP
+Northern lights effect.
+.IP \fIembers\fP
+Rising fire embers.
+.RE
+.TP
+.B \-C
+Start in console mode. This captures /dev/console output.
+.TP
+.BI \-brightness " val"
+Set the global brightness factor for dynamic backgrounds (default: 1.0). Useful for adjusting visibility of text against bright backgrounds.
+.TP
+.BI \-theme " name"
+Set the color theme. Available themes: vga, vga-green, solarized, solarized-light, legacy. Default is legacy.
+.TP
+.BI \-fg " color"
+Set the foreground color (e.g. "green", "#00FF00"). Overrides the theme color.
+.TP
+.BI \-bg " color"
+Set the background color. Overrides the theme color.
+.TP
+.B \-burn
+Enable maximum refresh rate (8ms interval). Useful for stress testing or burning GPU cycles.
+.SH RESOURCES
+The application understands the following X resources:
+.TP
+.B theme
+Set the color theme (same as \-theme).
+.TP
+.B foreground
+Set the foreground color (same as \-fg).
+.TP
+.B background
+Set the background color (same as \-bg).
+.TP
+.B color0 through color15
+Override specific palette colors (e.g. *color0: #000000).
+.TP
+.B fontFamily
+Set the font family.
+.TP
+.B fontSize
+Set the font size.
+.TP
+.B dynamicBackground
+Set the dynamic background mode.
+.TP
+.B brightness
+Set the background brightness.
+.TP
+.B redrawInterval
+Set the redraw interval in milliseconds.
+.SH KEYBOARD SHORTCUTS
+.SS Scrolling
+.TP
+.B Shift+PageUp
+Scroll up one page.
+.TP
+.B Shift+PageDown
+Scroll down one page.
+.TP
+.B Ctrl+Alt+Up
+Scroll up one line.
+.TP
+.B Ctrl+Alt+Down
+Scroll down one line.
+.TP
+.B Ctrl+Alt+PageUp
+Scroll up one page.
+.TP
+.B Ctrl+Alt+PageDown
+Scroll down one page.
+.SS Zooming
+.TP
+.B Ctrl+Alt+Plus (+)
+Zoom in.
+.TP
+.B Ctrl+Alt+Minus (-)
+Zoom out.
+.SS Tabs
+.TP
+.B Ctrl+Alt+1..9
+Switch to tabs 1 through 9.
+.TP
+.B Ctrl+Alt+0
+Switch to tab 10.
+.TP
+.B Ctrl+Alt+Tab
+Cycle to the next tab.
+.TP
+.B Ctrl+Alt+N
+Open new terminal tab.
+.TP
+.B Ctrl+Alt+W
+Close current tab.
+.SH MOUSE ACTIONS
+.TP
+.B Left Click & Drag
+Select text. Text is automatically copied to the clipboard on release.
+.TP
+.B Middle Click
+Paste text from the clipboard.
+.SH AUTHOR
+Written by a very good cat.
+.SH SEE ALSO
+.BR X (1)

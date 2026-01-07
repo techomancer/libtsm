@@ -1,0 +1,6 @@
+Menu Desktop
+{
+    no-label            f.separator
+    "Dash Terminal"      f.checkexec "dash &"
+    "Dash Console"       f.checkexec "dash -C &"
+}

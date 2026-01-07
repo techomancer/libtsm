@@ -950,6 +950,9 @@ unsigned int tsm_screen_sb_get_line_pos(struct tsm_screen *con)
 	if (!con) {
 		return 0;
 	}
+	
+	if (!con->sb_pos)
+		return con->sb_count;
 
 	return con->sb_pos_num;
 }

@@ -28,12 +28,13 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/poll.h>
-#include <sys/wait.h>
+#include <sys/stropts.h>
 #else
 /* Linux PTY support */
 #include <pty.h>
 #include <sys/epoll.h>
 #endif
+#include <sys/wait.h>
 
 #include "shl-macro.h"
 #include "shl-pty.h"
@@ -119,16 +120,19 @@ static int pty_setup_child(int slave,
 	if (tcgetattr(slave, &attr) < 0)
 		return -errno;
 
-	/* erase character should be normal backspace, PLEASEEE! */
+	/* Set standard control characters */
 	attr.c_cc[VERASE] = 010;
+	attr.c_cc[VINTR] = 003;
 #ifndef __sgi
 	/* always set UTF8 flag (not available on IRIX) */
 	attr.c_iflag |= IUTF8;
 #endif
 
 	/* set changed terminal attributes */
-	if (tcsetattr(slave, TCSANOW, &attr) < 0)
+	if (tcsetattr(slave, TCSANOW, &attr) < 0) {
+		fprintf(stderr, "dash: tcsetattr failed: %s\n", strerror(errno));
 		return -errno;
+	}
 
 	memset(&ws, 0, sizeof(ws));
 	ws.ws_col = term_width;
@@ -146,7 +150,7 @@ static int pty_setup_child(int slave,
 }
 
 #ifdef __sgi
-/* IRIX version: open slave PTY using provided slave_name */
+
 static int pty_init_child_irix(const char *slave_name)
 {
 	int r, i, slave;
@@ -156,27 +160,42 @@ static int pty_init_child_irix(const char *slave_name)
 	/* Reset signal handlers */
 	sigemptyset(&sigset);
 	r = sigprocmask(SIG_SETMASK, &sigset, NULL);
-	if (r < 0)
-		return -errno;
+	if (r < 0) {
+		r = -errno;
+		fprintf(stderr, "dash: failed sigprocmask:%s\n", strerror(errno));
+		return r;
+	}
 
-	for (i = 1; i < SIGSYS; ++i)
+	for (i = 1; i < NSIG; ++i)
 		signal(i, SIG_DFL);
-
-	/* Open slave TTY */
-	slave = open(slave_name, O_RDWR | O_NOCTTY);
-	if (slave < 0)
-		return -errno;
-
-	/* Set close-on-exec manually (IRIX doesn't have O_CLOEXEC) */
-	fcntl(slave, F_SETFD, FD_CLOEXEC);
 
 	/* Open session so we lose our controlling TTY */
 	pid = setsid();
 	if (pid < 0) {
-		close(slave);
+		fprintf(stderr, "dash: failed setsid:%s\n", strerror(errno));
 		return -errno;
 	}
 
+	/* Open slave TTY. This becomes our controlling TTY. */
+	slave = open(slave_name, O_RDWR);
+	if (slave < 0) {
+		r = -errno;
+		fprintf(stderr, "dash: opening %s failed:%s\n", slave_name, strerror(errno));
+		return r;
+	}
+
+	/* Set close-on-exec manually (IRIX doesn't have O_CLOEXEC) */
+	fcntl(slave, F_SETFD, FD_CLOEXEC);
+#if 0
+	/* Verify we have a controlling TTY */
+	int tty = open("/dev/tty", O_RDWR);
+	if (tty < 0) {
+		r = -errno;
+		fprintf(stderr, "dash: child failed to acquire controlling TTY: %s\n", strerror(errno));
+		return r;
+	}
+	close(tty);
+#endif
 #ifndef __sgi
 	/* Set controlling TTY (on IRIX, opening terminal after setsid does this) */
 	r = ioctl(slave, TIOCSCTTY, 0);
@@ -206,7 +225,7 @@ static int pty_init_child(int fd)
 	if (r < 0)
 		return -errno;
 
-	for (i = 1; i < SIGSYS; ++i)
+	for (i = 1; i < NSIG; ++i)
 		signal(i, SIG_DFL);
 
 	r = grantpt(fd);

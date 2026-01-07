@@ -1,0 +1,6 @@
+f 0755 root sys usr/bin/dash usr/bin/dash dash.sw.base
+f 0644 root sys usr/share/lib/terminfo/d/dash usr/share/lib/terminfo/d/dash dash.sw.base
+f 0644 root sys usr/share/lib/terminfo/d/dash-256color usr/share/lib/terminfo/d/dash-256color dash.sw.base
+f 0644 root sys usr/share/man/man1/dash.1 usr/share/man/man1/dash.1 dash.sw.base
+f 0644 root sys usr/lib/filetype/local/dash.ftr usr/lib/filetype/local/dash.ftr dash.sw.base
+f 0644 root sys usr/lib/X11/app-chests/dash.chest usr/lib/X11/app-chests/dash.chest dash.sw.base

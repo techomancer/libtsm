@@ -8,7 +8,8 @@ include $(ROOT)/common.mk
 # Subdirectories to build in order
 SUBDIRS = external/wcwidth \
           src/shared \
-          src/tsm
+          src/tsm \
+          dash
 
 # Optional test directory
 TEST_DIR = test

@@ -1,0 +1,14 @@
+TYPE DashExecutable
+    MATCH       tag(0x0001D450);
+    LEGEND      "Dash Terminal"
+    SUPERTYPE   Executable
+    CMD OPEN    $LEADER $REST
+    CMD ALTOPEN $LEADER -C $REST
+    CMD DROP    $LEADER -e $REST
+    ICON        {
+        if (opened) {
+            include("iconlib/ttyExec.fti");
+        } else {
+            include("iconlib/ttyExec.fti");
+        }
+    }

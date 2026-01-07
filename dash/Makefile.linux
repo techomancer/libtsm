@@ -1,0 +1,33 @@
+# Standalone Makefile for dash on Linux
+
+PREFIX ?= /usr/local
+
+CC = gcc
+CFLAGS = -O2 -Wall -D_GNU_SOURCE -I../src/tsm -I../src/shared
+
+# Libraries
+LIBS = ../out/src/tsm/libtsm.a ../out/src/shared/libshl.a -lGLw -lXm -lXt -lX11 -lGL -lm
+
+# Object files
+OBJS = dash.o dash-night.o dash-sunset.o dash-ocean.o dash-aurora.o dash-embers.o shl-pty.o shl-ring.o dash-static.o dash-themes.o
+
+all: dash
+
+dash: $(OBJS)
+	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LIBS)
+
+shl-pty.o: ../src/shared/shl-pty.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+shl-ring.o: ../src/shared/shl-ring.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+clean:
+	rm -f dash $(OBJS)
+
+install: dash
+	mkdir -p $(PREFIX)/bin
+	cp dash $(PREFIX)/bin/
+	mkdir -p $(PREFIX)/share/man/man1
+	cp dash.1 $(PREFIX)/share/man/man1/
+	tic dash.ti
