@@ -1,3 +1,4 @@
+/* Copyright 2026 Dominik Behr */
 #ifndef DASH_H
 #define DASH_H
 
