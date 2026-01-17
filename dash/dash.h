@@ -185,6 +185,7 @@ typedef struct {
     char *osd_text;
     struct timeval osd_start_time;
     int dirty;
+    int is_impact;
 } DashApp;
 
 extern DashApp app;

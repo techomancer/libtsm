@@ -1,5 +1,5 @@
 TYPE DashExecutable
-    MATCH       tag(0x0001D450);
+    MATCH       tag == 0x0001D450;
     LEGEND      "Dash Terminal"
     SUPERTYPE   Executable
     CMD OPEN    $LEADER $REST

@@ -1075,6 +1075,7 @@ render_frame(void)
     }
 
     /* Bind glyph atlas texture */
+    glEnable(GL_TEXTURE_2D);
     glBindTexture(GL_TEXTURE_2D, app.font_info.atlas_texture);
 
     /* Let TSM fill the vertex arrays via tsm_draw_cb.
@@ -1325,6 +1326,12 @@ gl_init_cb(Widget w, XtPointer client_data, XtPointer call_data)
     /* Make context current */
     GLwDrawingAreaMakeCurrent(w, app.gl_context);
 
+    const char *renderer = (const char *)glGetString(GL_RENDERER);
+    if (renderer && strstr(renderer, "IMPACT")) {
+        app.is_impact = 1;
+        printf("dash: detected IMPACT graphics, using GL_LUMINANCE_ALPHA atlas\n");
+    }
+
     /* Initialize OpenGL state */
     glClearColor(0.1, 0.1, 0.2, 1.0);  /* Dark blue background */
     glDisable(GL_DEPTH_TEST);
@@ -1332,6 +1339,7 @@ gl_init_cb(Widget w, XtPointer client_data, XtPointer call_data)
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_TEXTURE_2D);
+    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
     /* Load font and build glyph atlas */
     if (load_font(app.settings.font_family ? app.settings.font_family : "courier",
@@ -2207,6 +2215,8 @@ build_font_atlas(XFontStruct *scaled_font, int actual_scale)
 {
     int i, glyph_w, glyph_h, scaled_w, scaled_h;
     int atlas_cols, atlas_rows;
+    unsigned int bpp = 1;
+    GLenum format = GL_ALPHA;
 
     /* Calculate atlas dimensions based on DISPLAY size */
     glyph_w = app.font_info.char_width;
@@ -2226,14 +2236,28 @@ build_font_atlas(XFontStruct *scaled_font, int actual_scale)
            glyph_w, glyph_h, scaled_w, scaled_h, actual_scale,
            app.font_info.atlas_width, app.font_info.atlas_height);
 
+    if (app.is_impact) {
+        bpp = 2;
+        format = GL_LUMINANCE_ALPHA;
+    }
+
     /* Allocate atlas buffer (final size only - no intermediate buffer needed!) */
     unsigned char *atlas_data;
     atlas_data = (unsigned char*)calloc(
-        app.font_info.atlas_width * app.font_info.atlas_height, 1);
+        app.font_info.atlas_width * app.font_info.atlas_height, bpp);
 
     if (!atlas_data) {
         fprintf(stderr, "dash: failed to allocate atlas buffer\n");
         return -1;
+    }
+
+    unsigned char *atlas_data_alpha = atlas_data + (app.is_impact ? 1 : 0);
+
+    if (app.is_impact) {
+        int total = app.font_info.atlas_width * app.font_info.atlas_height;
+        for (i = 0; i < total; i++) {
+            atlas_data[i * 2] = 0xFF;
+        }
     }
 
     GC gc;
@@ -2318,8 +2342,8 @@ build_font_atlas(XFontStruct *scaled_font, int actual_scale)
                         if (val > 255) val = 255;
                     }
 
-                    int idx = dest_y * app.font_info.atlas_width + dest_x;
-                    atlas_data[idx] = (unsigned char)val;
+                    unsigned int idx = (dest_y * app.font_info.atlas_width + dest_x) * bpp;
+                    atlas_data_alpha[idx] = (unsigned char)val;
                 }
                 sx0 = sx1;
             }
@@ -2344,11 +2368,24 @@ build_font_atlas(XFontStruct *scaled_font, int actual_scale)
     /* Create OpenGL texture */
     glGenTextures(1, &app.font_info.atlas_texture);
     glBindTexture(GL_TEXTURE_2D, app.font_info.atlas_texture);
+    glEnable(GL_TEXTURE_2D);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA,
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+
+    while(glGetError() != GL_NO_ERROR);
+
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexImage2D(GL_TEXTURE_2D, 0, format,
                  app.font_info.atlas_width, app.font_info.atlas_height,
-                 0, GL_ALPHA, GL_UNSIGNED_BYTE, atlas_data);
+                 0, format, GL_UNSIGNED_BYTE, atlas_data);
+    
+    GLenum err = glGetError();
+    if (err != GL_NO_ERROR) {
+        fprintf(stderr, "dash: glTexImage2D failed: 0x%x\n", err);
+        exit(1);
+    }
 
     free(atlas_data);
 

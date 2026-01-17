@@ -25,6 +25,8 @@ static_bg_init(int width, int height)
     StaticBg *bg;
     unsigned char *data;
     int i;
+    int bpp = 1;
+    GLenum format = GL_ALPHA;
 
     /* Handle re-initialization (resize) */
     if (app.bg_state) {
@@ -36,12 +38,24 @@ static_bg_init(int width, int height)
         app.bg_state = NULL;
     }
 
+    if (app.is_impact) {
+        bpp = 2;
+        format = GL_LUMINANCE_ALPHA;
+    }
+
     bg = calloc(1, sizeof(StaticBg));
     
     /* Create texture with random noise */
-    data = malloc(STATIC_TEX_SIZE * STATIC_TEX_SIZE);
-    for (i = 0; i < STATIC_TEX_SIZE * STATIC_TEX_SIZE; i++) {
-        data[i] = rand() % 256;
+    data = malloc(STATIC_TEX_SIZE * STATIC_TEX_SIZE * bpp);
+    if (app.is_impact) {
+        for (i = 0; i < STATIC_TEX_SIZE * STATIC_TEX_SIZE; i++) {
+            data[i * 2] = 0xFF;
+            data[i * 2 + 1] = rand() % 256;
+        }
+    } else {
+        for (i = 0; i < STATIC_TEX_SIZE * STATIC_TEX_SIZE; i++) {
+            data[i] = rand() % 256;
+        }
     }
 
     glGenTextures(1, &bg->texture);
@@ -50,9 +64,10 @@ static_bg_init(int width, int height)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, 
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexImage2D(GL_TEXTURE_2D, 0, format, 
                  STATIC_TEX_SIZE, STATIC_TEX_SIZE, 
-                 0, GL_ALPHA, GL_UNSIGNED_BYTE, data);
+                 0, format, GL_UNSIGNED_BYTE, data);
     free(data);
 
     /* Allocate texture coordinates array matching the vertex buffer size */
