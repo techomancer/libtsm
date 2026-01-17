@@ -62,19 +62,17 @@ uninstall:
 dist: $(TARGET)
 	rm -rf dist images
 	mkdir -p dist/usr/bin
-	mkdir -p dist/usr/share/lib/terminfo/d
 	mkdir -p dist/usr/share/man/man1
 	mkdir -p dist/usr/lib/filetype/local
 	mkdir -p dist/usr/lib/X11/app-chests
 	cp $(TARGET) dist/usr/bin/
 	strip dist/usr/bin/$(TARGET)
 	/usr/sbin/tag $(TAG) dist/usr/bin/$(TARGET)
-	TERMINFO=dist/usr/share/lib/terminfo tic dash.ti
+	cp dash.ti dist/
 	cp dash.1 dist/usr/share/man/man1/dash.1
 	cp dash.ftr dist/usr/lib/filetype/local/
 	cp dash.chest dist/usr/lib/X11/app-chests/
-	cp dash.idb dist/dash.idb
-	sort -k 5,6 dist/dash.idb -o dist/dash.idb
+	sort -k 5,6 dash.idb -o dist/dash.idb
 	mkdir images
 	gendist -verbose -sbase dist -idb dist/dash.idb -spec dash.spec -dist images
 	cd images && tar cvf ../dash.tardist *

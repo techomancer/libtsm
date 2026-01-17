@@ -6,9 +6,5 @@ TYPE DashExecutable
     CMD ALTOPEN $LEADER -C $REST
     CMD DROP    $LEADER -e $REST
     ICON        {
-        if (opened) {
-            include("iconlib/ttyExec.fti");
-        } else {
-            include("iconlib/ttyExec.fti");
-        }
+        include("../system/iconlib/ttyExec.fti");
     }
