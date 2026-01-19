@@ -2,7 +2,7 @@ product dash
     id "Modern IRIX Terminal Emulator"
     image sw
         id "Software"
-        version 1.1
+        version 1.2
         order 9999
         subsys base
             id "Base Software"

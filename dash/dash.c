@@ -2217,6 +2217,7 @@ build_font_atlas(XFontStruct *scaled_font, int actual_scale)
     int atlas_cols, atlas_rows;
     unsigned int bpp = 1;
     GLenum format = GL_ALPHA;
+    float *intermediate;
 
     /* Calculate atlas dimensions based on DISPLAY size */
     glyph_w = app.font_info.char_width;
@@ -2241,13 +2242,21 @@ build_font_atlas(XFontStruct *scaled_font, int actual_scale)
         format = GL_LUMINANCE_ALPHA;
     }
 
-    /* Allocate atlas buffer (final size only - no intermediate buffer needed!) */
+    /* Allocate intermediate buffer for high-precision data */
+    intermediate = calloc(app.font_info.atlas_width * app.font_info.atlas_height, sizeof(float));
+    if (!intermediate) {
+        fprintf(stderr, "dash: failed to allocate intermediate buffer\n");
+        return -1;
+    }
+
+    /* Allocate atlas buffer */
     unsigned char *atlas_data;
     atlas_data = (unsigned char*)calloc(
         app.font_info.atlas_width * app.font_info.atlas_height, bpp);
 
     if (!atlas_data) {
         fprintf(stderr, "dash: failed to allocate atlas buffer\n");
+        free(intermediate);
         return -1;
     }
 
@@ -2273,6 +2282,10 @@ build_font_atlas(XFontStruct *scaled_font, int actual_scale)
     gc = XCreateGC(app.display, pixmap,
                    GCFont | GCForeground | GCBackground, &gcv);
 
+    /* Calculate coverage steps */
+    unsigned int step_y = ((unsigned int)scaled_h << 8) / glyph_h;
+    unsigned int step_x = ((unsigned int)scaled_w << 8) / glyph_w;
+
     char str[2] = {0, 0};
 
     /* Render each glyph and accumulate into atlas */
@@ -2295,9 +2308,6 @@ build_font_atlas(XFontStruct *scaled_font, int actual_scale)
                          1, XYPixmap);
 
         /* Accumulate pixels into atlas with area coverage (24.8 fixed point) */
-        unsigned int step_y = ((unsigned int)scaled_h << 8) / glyph_h;
-        unsigned int step_x = ((unsigned int)scaled_w << 8) / glyph_w;
-        unsigned int total_area = step_x * step_y;
         unsigned int sy0 = 0;
 
         for (int dy = 0; dy < glyph_h; dy++) {
@@ -2335,15 +2345,8 @@ build_font_atlas(XFontStruct *scaled_font, int actual_scale)
                         accum += row_accum * y_cov;
                     }
 
-                    /* Calculate total area (16.16 fixed point) and normalize */
-                    unsigned int val = 0;
-                    if (total_area > 0) {
-                        val = (unsigned int)((unsigned long long)accum * 255 / total_area);
-                        if (val > 255) val = 255;
-                    }
-
-                    unsigned int idx = (dest_y * app.font_info.atlas_width + dest_x) * bpp;
-                    atlas_data_alpha[idx] = (unsigned char)val;
+                    unsigned int idx = dest_y * app.font_info.atlas_width + dest_x;
+                    intermediate[idx] = (float)accum;
                 }
                 sx0 = sx1;
             }
@@ -2364,6 +2367,29 @@ build_font_atlas(XFontStruct *scaled_font, int actual_scale)
 
     XFreeGC(app.display, gc);
     XFreePixmap(app.display, pixmap);
+
+    /* Pack intermediate data into texture */
+    float max_val = 0.0f;
+    int total_pixels = app.font_info.atlas_width * app.font_info.atlas_height;
+
+    /* Find max value for normalization */
+    for (i = 0; i < total_pixels; i++) {
+        if (intermediate[i] > max_val) max_val = intermediate[i];
+    }
+
+    for (i = 0; i < total_pixels; i++) {
+        float val = intermediate[i];
+        unsigned int out_val = 0;
+        if (max_val > 0.0f) {
+            /* Normalize and apply gamma correction (0.75) to boost dark areas */
+            float norm = val / max_val;
+            out_val = (unsigned int)(powf(norm, 0.75f) * 255.0f);
+        }
+        
+        atlas_data_alpha[i * bpp] = (unsigned char)out_val;
+    }
+
+    free(intermediate);
 
     /* Create OpenGL texture */
     glGenTextures(1, &app.font_info.atlas_texture);

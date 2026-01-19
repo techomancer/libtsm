@@ -60,11 +60,12 @@ uninstall:
 	rm -f /usr/lib/X11/app-chests/dash.chest
 
 dist: $(TARGET)
-	rm -rf dist images
+	rm -rf dist
 	mkdir -p dist/usr/bin
 	mkdir -p dist/usr/share/man/man1
 	mkdir -p dist/usr/lib/filetype/local
 	mkdir -p dist/usr/lib/X11/app-chests
+	mkdir -p dist/tardist
 	cp $(TARGET) dist/usr/bin/
 	strip dist/usr/bin/$(TARGET)
 	/usr/sbin/tag $(TAG) dist/usr/bin/$(TARGET)
@@ -73,9 +74,8 @@ dist: $(TARGET)
 	cp dash.ftr dist/usr/lib/filetype/local/
 	cp dash.chest dist/usr/lib/X11/app-chests/
 	sort -k 5,6 dash.idb -o dist/dash.idb
-	mkdir images
-	gendist -verbose -sbase dist -idb dist/dash.idb -spec dash.spec -dist images
-	cd images && tar cvf ../dash.tardist *
+	gendist -verbose -sbase dist -idb dist/dash.idb -spec dash.spec -dist dist/tardist
+	cd dist/tardist && tar cvf ../../dash-1.2.tardist *
 
 # Dependencies
 dash.o: dash.c dash.h
